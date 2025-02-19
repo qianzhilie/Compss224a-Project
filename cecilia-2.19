@@ -1,3 +1,5 @@
+### Research Question 1 (Rent Burden): How has the rent burden in San Mateo County changed over time?
+
 install.packages("tidyverse")  
 install.packages("tidycensus")
 install.packages("qs")
