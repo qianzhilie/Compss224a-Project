@@ -1,5 +1,4 @@
-**Research Question 1 (Rent Burden-Population): How has the rent burden in San Mateo County changed over time?**
-
+**Research Question 1 (Rent Burden - Population Part ): How has the rent burden in San Mateo County changed over time?**
 
 install.packages("tidyverse")  
 install.packages("tidycensus")
