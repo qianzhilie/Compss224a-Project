@@ -1,0 +1,178 @@
+# Research Question 2 [Descriptive Analysis & Correlation Part]
+install.packages("tidyverse")  
+install.packages("tidycensus")
+install.packages("qs")
+install.packages(c("sf", "ggplot2", "tigris", "viridis", "corrplot"))
+
+library(tidyverse) 
+library(tidycensus) 
+library(qs) 
+library(sf)
+library(ggplot2)
+library(tigris)
+library(viridis)
+library(scales)
+library(corrplot)
+
+census_api_key("769ca12e1964566908c58c102df4729e91301ba3", install = TRUE, overwrite = TRUE)
+
+# Define variables to retrieve from ACS
+acs_vars <- c(
+  # Rent Burden
+  rent_burden = "B25070_007",       
+  total_renters = "B25003_003",
+  
+  # Migration & Mobility
+  total_population = "B07003_001",
+  moved_same_house = "B07003_002",
+  moved_within_state = "B07003_003",
+  moved_different_state = "B07003_004",
+  moved_abroad = "B07003_005"
+)
+
+# Define parameters
+years <- 2012:2022  
+state <- "CA"
+county <- "San Mateo"
+
+# Retrieve data for each year
+acs_data_all <- map_dfr(years, function(year) {
+  get_acs(
+    geography = "tract",
+    variables = acs_vars,
+    state = state,
+    county = county,
+    year = year,
+    survey = "acs5",
+    geometry = FALSE
+  ) %>%
+    mutate(year = year) 
+})
+
+# Clean and reshape data
+acs_clean_all <- acs_data_all %>%
+  select(GEOID, NAME, variable, estimate, year) %>%
+  pivot_wider(names_from = variable, values_from = estimate) %>%
+  mutate(
+    rent_burden_pct = (rent_burden / total_renters) * 100
+  )
+
+# Aggregate data at the county level
+acs_county_data <- acs_clean_all %>%
+  group_by(year) %>%
+  summarise(
+    mean_rent_burden = mean(rent_burden_pct, na.rm = TRUE),
+    total_population = sum(total_population, na.rm = TRUE),
+    movers_same_house = sum(moved_same_house, na.rm = TRUE),
+    movers_within_state = sum(moved_within_state, na.rm = TRUE),
+    movers_different_state = sum(moved_different_state, na.rm = TRUE),
+    movers_abroad = sum(moved_abroad, na.rm = TRUE)
+  )
+
+# Ensure numeric values before reshaping
+summary_stats <- acs_county_data %>%
+  summarise(
+    mean_rent_burden = mean(mean_rent_burden, na.rm = TRUE),
+    sd_rent_burden = sd(mean_rent_burden, na.rm = TRUE),
+    min_rent_burden = min(mean_rent_burden, na.rm = TRUE),
+    max_rent_burden = max(mean_rent_burden, na.rm = TRUE),
+    
+    mean_total_population = mean(total_population, na.rm = TRUE),
+    sd_total_population = sd(total_population, na.rm = TRUE),
+    min_total_population = min(total_population, na.rm = TRUE),
+    max_total_population = max(total_population, na.rm = TRUE),
+    
+    mean_movers_same_house = mean(movers_same_house, na.rm = TRUE),
+    sd_movers_same_house = sd(movers_same_house, na.rm = TRUE),
+    min_movers_same_house = min(movers_same_house, na.rm = TRUE),
+    max_movers_same_house = max(movers_same_house, na.rm = TRUE),
+    
+    mean_movers_within_state = mean(movers_within_state, na.rm = TRUE),
+    sd_movers_within_state = sd(movers_within_state, na.rm = TRUE),
+    min_movers_within_state = min(movers_within_state, na.rm = TRUE),
+    max_movers_within_state = max(movers_within_state, na.rm = TRUE),
+    
+    mean_movers_different_state = mean(movers_different_state, na.rm = TRUE),
+    sd_movers_different_state = sd(movers_different_state, na.rm = TRUE),
+    min_movers_different_state = min(movers_different_state, na.rm = TRUE),
+    max_movers_different_state = max(movers_different_state, na.rm = TRUE),
+    
+    mean_movers_abroad = mean(movers_abroad, na.rm = TRUE),
+    sd_movers_abroad = sd(movers_abroad, na.rm = TRUE),
+    min_movers_abroad = min(movers_abroad, na.rm = TRUE),
+    max_movers_abroad = max(movers_abroad, na.rm = TRUE)
+  )
+
+# Convert all values to numeric to avoid list storage issues
+summary_stats <- summary_stats %>%
+  mutate(across(everything(), as.numeric))
+
+# Convert summary_stats to long format while keeping movers separate
+summary_stats_clean <- summary_stats %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = c("Statistic", "Variable"),
+    names_pattern = "(mean|min|max|sd)_(.*)"
+  ) %>%
+  pivot_wider(names_from = "Statistic", values_from = "value")
+
+# Ensure Variable column is properly formatted
+summary_stats_clean <- summary_stats_clean %>%
+  mutate(Variable = as.character(Variable))
+
+# Print cleaned summary statistics table
+print(summary_stats_clean, n = Inf)  # Show all rows
+
+# Correlation Analysis
+correlation_within_state <- cor(acs_county_data$mean_rent_burden, acs_county_data$movers_within_state, use = "complete.obs")
+correlation_different_state <- cor(acs_county_data$mean_rent_burden, acs_county_data$movers_different_state, use = "complete.obs")
+correlation_abroad <- cor(acs_county_data$mean_rent_burden, acs_county_data$movers_abroad, use = "complete.obs")
+
+# Print correlation results
+cat("Correlation between Rent Burden and Movers within State: ", correlation_within_state, "\n")
+cat("Correlation between Rent Burden and Movers from Different States: ", correlation_different_state, "\n")
+cat("Correlation between Rent Burden and Movers from Abroad: ", correlation_abroad, "\n")
+
+# Correlation Analysis
+cor_matrix <- acs_county_data %>%
+  select(mean_rent_burden, movers_same_house, movers_within_state, movers_different_state, movers_abroad) %>%
+  cor(use = "complete.obs")
+
+# Print correlation matrix
+print(cor_matrix)
+
+# Visualizing Correlations
+corrplot(cor_matrix, method = "circle", type = "upper", 
+         tl.col = "black", tl.cex = 0.7, tl.srt = 30, col = viridis(200))
+
+# Scatter plots for pairwise relationships
+ggplot(acs_county_data, aes(x = movers_within_state, y = mean_rent_burden)) +
+  geom_point(alpha = 0.5, color = "blue") +
+  geom_smooth(method = "lm", color = "red") +
+  labs(
+    title = "Rent Burden vs Movers Within State",
+    x = "People Moved Within State",
+    y = "Mean Rent Burden (%)"
+  ) +
+  theme_minimal()
+
+ggplot(acs_county_data, aes(x = movers_different_state, y = mean_rent_burden)) +
+  geom_point(alpha = 0.5, color = "purple") +
+  geom_smooth(method = "lm", color = "red") +
+  labs(
+    title = "Rent Burden vs Movers from Different States",
+    x = "People Moved from Different States",
+    y = "Mean Rent Burden (%)"
+  ) +
+  theme_minimal()
+
+ggplot(acs_county_data, aes(x = movers_abroad, y = mean_rent_burden)) +
+  geom_point(alpha = 0.5, color = "green") +
+  geom_smooth(method = "lm", color = "red") +
+  labs(
+    title = "Rent Burden vs Movers from Abroad",
+    x = "People Moved from Abroad",
+    y = "Mean Rent Burden (%)"
+  ) +
+  theme_minimal()
+
