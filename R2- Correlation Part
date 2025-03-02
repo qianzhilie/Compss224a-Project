@@ -1,4 +1,5 @@
 # Research Question 2 [Descriptive Analysis & Correlation Part]
+
 install.packages("tidyverse")  
 install.packages("tidycensus")
 install.packages("qs")
@@ -145,6 +146,25 @@ print(cor_matrix)
 corrplot(cor_matrix, method = "circle", type = "upper", 
          tl.col = "black", tl.cex = 0.7, tl.srt = 30, col = viridis(200))
 
+install.packages("ggcorrplot")
+library(ggcorrplot)
+
+ggcorrplot(cor_matrix, 
+           method = "square", 
+           type = "lower", 
+           lab = TRUE, 
+           lab_size = 4,  # Increase text size
+           colors = c("blue", "white", "red"), 
+           title = "Correlation Heatmap of Rent Burden and Mobility",
+           ggtheme = theme_minimal()) +
+  theme(
+    axis.text.x = element_text(angle = 20, vjust = 1, hjust = 1, size = 10),  # Less slanted
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 14, face = "bold"),
+    panel.grid = element_blank(),  # Remove gridlines
+    axis.title = element_blank()  # Remove axis titles for a cleaner look
+  )
+
 # Scatter plots for pairwise relationships
 ggplot(acs_county_data, aes(x = movers_within_state, y = mean_rent_burden)) +
   geom_point(alpha = 0.5, color = "blue") +
@@ -176,3 +196,75 @@ ggplot(acs_county_data, aes(x = movers_abroad, y = mean_rent_burden)) +
   ) +
   theme_minimal()
 
+
+
+
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(scales)
+library(viridis)
+
+# Reshape data to long format
+acs_long <- acs_county_data %>%
+  pivot_longer(
+    cols = c(movers_within_state, movers_different_state, movers_abroad),
+    names_to = "Mobility_Type", 
+    values_to = "Movers"
+  )
+
+# Function to compute R² for annotation
+calculate_r2 <- function(data, x, y) {
+  model <- lm(data[[y]] ~ data[[x]], data = data)
+  r2_value <- summary(model)$r.squared
+  return(round(r2_value, 2))
+}
+
+# Compute R² values for each mobility type
+r2_labels <- acs_long %>%
+  group_by(Mobility_Type) %>%
+  summarise(R2 = calculate_r2(cur_data(), "Movers", "mean_rent_burden")) %>%
+  mutate(label = paste0("R² = ", R2))
+
+# Compute label positions dynamically for better alignment with regression lines
+r2_labels_positions <- acs_long %>%
+  group_by(Mobility_Type) %>%
+  summarise(
+    x = median(Movers, na.rm = TRUE) * 1.05,  # Slightly shift right
+    y = median(mean_rent_burden, na.rm = TRUE) * 1.02  # Slightly shift up
+  ) %>%
+  left_join(r2_labels, by = "Mobility_Type")
+
+# Create a visually improved combined plot with separate R² labels
+ggplot(acs_long, aes(x = Movers, y = mean_rent_burden, color = Mobility_Type)) +
+  geom_point(alpha = 0.6, size = 3) +  # Larger points
+  geom_smooth(method = "lm", se = FALSE, size = 1.2) +  # Regression lines
+  geom_text(
+    data = r2_labels_positions,
+    aes(x = x, y = y, label = label, color = Mobility_Type),
+    size = 5, fontface = "bold",
+    show.legend = FALSE
+  ) +  # R² labels positioned for each group
+  scale_x_continuous(labels = comma_format()) +  # Format x-axis numbers
+  
+  # 🎨 Apply a Viridis color palette that matches your stacked bar chart
+  scale_color_viridis_d(option = "viridis", end = 0.9) +  # Use "viridis" for consistency
+  # Alternative: If "cividis" looks closer to your stacked bar chart
+  # scale_color_viridis_d(option = "cividis", end = 0.9) 
+  
+  labs(
+    title = "Rent Burden vs Mobility Patterns",
+    subtitle = "Comparing Movers Within State, Different States, and Abroad",
+    x = "Number of Movers",
+    y = "Mean Rent Burden (%)"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 12, margin = margin(b = 10)),
+    text = element_text(size = 14),
+    axis.title = element_text(size = 12),
+    legend.text = element_text(size = 12)
+  )
