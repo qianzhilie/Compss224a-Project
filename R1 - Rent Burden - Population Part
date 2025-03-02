@@ -1,9 +1,6 @@
 **Research Question 1 (Rent Burden - Population Part ): How has the rent burden in San Mateo County changed over time?**
 
-install.packages("tidyverse")  
-install.packages("tidycensus")
-install.packages("qs")
-install.packages(c("sf", "ggplot2", "tigris", "viridis"))
+install.packages(c("tidyverse", "tidycensus", "qs", "sf", "ggplot2", "tigris", "viridis"))
 
 library(tidyverse) 
 library(tidycensus) 
@@ -16,18 +13,23 @@ library(scales)
 
 census_api_key("769ca12e1964566908c58c102df4729e91301ba3", install = TRUE, overwrite = TRUE)
 
-vars_2022 <- load_variables(2022, "acs5", cache = TRUE)
-head(vars_2022)
-
-## Research Question: How has the rent burden in San Mateo County changed over time?
-
 years <- 2012:2022  
 state <- "CA"
 county <- "San Mateo"
+
 acs_vars <- c(
   median_income = "B19013_001",   
-  rent_burden = "B25070_007",       
-  total_renters = "B25003_003",   
+  rent_burden_total = "B25070_001",  # Total renters
+  rent_burden_0_9 = "B25070_002",    # Less than 10%
+  rent_burden_10_14 = "B25070_003",  # 10-14%
+  rent_burden_15_19 = "B25070_004",  # 15-19%
+  rent_burden_20_24 = "B25070_005",  # 20-24%
+  rent_burden_25_29 = "B25070_006",  # 25-29%
+  rent_burden_30_34 = "B25070_007",  # 30-34%
+  rent_burden_35_39 = "B25070_008",  # 35-39%
+  rent_burden_40_49 = "B25070_009",  # 40-49%
+  rent_burden_50_plus = "B25070_010", # 50% or more
+  total_renters = "B25003_003",      # Total renters (alternative)
   poverty = "B17001_002",    
   total_pop = "B01003_001",     
   white_pop = "B02001_002",        
@@ -35,7 +37,6 @@ acs_vars <- c(
   asian_pop = "B02001_005",          
   latinx_pop = "B03002_012"          
 )
-
 acs_data_all <- map_dfr(years, function(year) {
   get_acs(
     geography = "tract",
@@ -53,11 +54,12 @@ acs_clean_all <- acs_data_all %>%
   select(GEOID, NAME, variable, estimate, year) %>%
   pivot_wider(names_from = variable, values_from = estimate) %>%
   mutate(
-    rent_burden_pct = (rent_burden / total_renters) * 100,
+    rent_burden_pct = (rent_burden_30_34 + rent_burden_35_39 + rent_burden_40_49 + rent_burden_50_plus) / rent_burden_total * 100,
     poverty_rate = (poverty / total_pop) * 100,
     area_sq_km = as.numeric(st_area(geometry)) / 1e6, 
     population_density = total_pop / area_sq_km    
   )
+
 
 common_limits <- c(
   min(acs_clean_all$rent_burden_pct, na.rm = TRUE),
@@ -66,7 +68,7 @@ common_limits <- c(
 
 map_2012 <- ggplot(acs_clean_all %>% filter(year == 2012)) +
   geom_sf(aes(fill = rent_burden_pct), color = "white", size = 0.1) +
-  scale_fill_viridis_c(option = "magma", direction = -1, name = "Rent Burden (%)",
+  scale_fill_viridis_c(option = "viridis", direction = -1, name = "Rent Burden (%)",
                        limits = common_limits) +
   labs(
     title = "Rent Burden in San Mateo County (2012)",
@@ -76,7 +78,7 @@ map_2012 <- ggplot(acs_clean_all %>% filter(year == 2012)) +
 
 map_2022 <- ggplot(acs_clean_all %>% filter(year == 2022)) +
   geom_sf(aes(fill = rent_burden_pct), color = "white", size = 0.1) +
-  scale_fill_viridis_c(option = "magma", direction = -1, name = "Rent Burden (%)",
+  scale_fill_viridis_c(option = "viridis", direction = -1, name = "Rent Burden (%)",
                        limits = common_limits) +
   labs(
     title = "Rent Burden in San Mateo County (2022)",
@@ -87,39 +89,17 @@ map_2022 <- ggplot(acs_clean_all %>% filter(year == 2022)) +
 map_2012 
 map_2022  
 
-ggplot(acs_clean_all, aes(x = factor(year), y = median_income, fill = factor(year))) +
-  geom_boxplot() +
-  scale_y_continuous(labels = dollar) +
-  labs(
-    title = "Trends in Median Household Income (2012-2022)",
-    x = "Year",
-    y = "Median Household Income (USD)",
-    fill = "Year",
-    caption = "Data Source: ACS 2012-2022"
-  ) +
-  theme_minimal()
-
-ggplot(acs_clean_all, aes(x = year, y = rent_burden_pct)) +
-  geom_point(color = "blue", alpha = 0.5) +  # Scatter plot with transparency
-  stat_summary(fun = mean, geom = "line", color = "red", size = 1) +  # Mean trend line
-  labs(
-    title = "Rent Burden Over Time in San Mateo County (2012-2022)",
-    x = "Year",
-    y = "Rent Burden (%)",
-    caption = "Data Source: ACS 2012-2022"
-  ) +
-  theme_minimal()
-
-# Aggregate mean rent burden by year
 rent_burden_trend <- acs_clean_all %>%
   group_by(year) %>%
   summarise(mean_rent_burden = mean(rent_burden_pct, na.rm = TRUE))
 
-# Plot the line chart
+
+green_viridis <- viridis(5, option = "viridis")[3]  # Adjust index for desired shade
+
 ggplot(rent_burden_trend, aes(x = year, y = mean_rent_burden)) +
-  geom_line(color = "limegreen", size = 1.2) +   # Smooth line
-  geom_point(color = "darkgreen", size = 3) +    # Add points to highlight values
-  scale_y_continuous(labels = scales::percent_format(scale = 1)) +  # Format y-axis
+  geom_line(color = green_viridis, size = 1.2) +   # Green Viridis color for line
+  geom_point(color = green_viridis, size = 3) +    # Same color for points
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +  
   labs(
     title = "Mean Rent Burden Over Time in San Mateo County (2012–2022)",
     x = "Year",
