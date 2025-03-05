@@ -1,11 +1,11 @@
 # Analyzing Rent Burden and Mobility Trends in San Mateo County
 
 ## Contributors
-- Zhilie Qian - MaCSS graduate student at UC Berkeley, with a focus on user experience research, behavioral analytics, and insights into the game industry.
+- Zhilie Qian - MaCSS graduate student at UC Berkeley, with a focus on user experience research, behavioral analytics, and insights into the game industry. [LinkedIn](https://www.linkedin.com/in/zhilieqian/)
 
-- Qinuo Yang - MaCSS graduate student at UC Berkeley, with a focus on data science and economics.
+- Qinuo Yang - MaCSS graduate student at UC Berkeley, with a focus on data science and economics. [LinkedIn](https://www.linkedin.com/in/qinuoyang/)
 
-- Chelsea Javier - MaCSS graduate student at UC Berkeley, with a focus on data analysis and research.
+- Chelsea Javier - MaCSS graduate student at UC Berkeley, with a focus on data analysis and research. [LinkedIn](https://www.linkedin.com/in/chelsjav/)
 
 ## Project Overview
 
